@@ -1,0 +1,105 @@
+name: publish v8 macOS libraries to release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'release tag'
+        required: true
+        type: string
+  
+jobs:
+  build-v8:
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      - uses: ConorMacBride/install-package@v1
+        with:
+          brew: ninja
+      - name: prepare cipd
+        run: |
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools
+          export PATH=$PATH:$GITHUB_WORKSPACE/depot_tools
+          echo "$GITHUB_WORKSPACE/depot_tools" >> $GITHUB_PATH
+      - name: download v8
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/v8
+          cd $GITHUB_WORKSPACE/v8
+          fetch v8
+          cd v8
+          git checkout 11.1.277
+          gclient sync
+      - name: build v8 arm64
+        run: |
+          cd $GITHUB_WORKSPACE/v8/v8
+          gn gen out/arm64 --args='
+            target_os = "mac"
+            use_xcode_clang=false
+            treat_warnings_as_errors=false 
+            icu_use_data_file=false use_custom_libcxx=false 
+            is_component_build=false 
+            is_debug=false 
+            v8_control_flow_integrity=false 
+            v8_monolithic=true v8_static_library=true 
+            v8_use_external_startup_data=false 
+            v8_enable_sandbox=false 
+            v8_enable_debugging_features=false 
+            v8_enable_i18n_support=false 
+            v8_enable_lite_mode=true 
+            v8_enable_pointer_compression=false 
+            v8_enable_v8_checks=false 
+            v8_enable_webassembly=false 
+            target_cpu = "arm64" 
+            v8_target_cpu = "arm64" 
+            symbol_level=0 
+            strip_debug_info=true'
+          $GITHUB_WORKSPACE/depot_tools/ninja -C out/arm64 -v
+      - name: build v8 x64
+        run: |
+          cd $GITHUB_WORKSPACE/v8/v8
+          gn gen out/x64 --args='
+            target_os = "mac"
+            use_xcode_clang=false
+            treat_warnings_as_errors=false 
+            icu_use_data_file=false use_custom_libcxx=false 
+            is_component_build=false 
+            is_debug=false 
+            v8_control_flow_integrity=false 
+            v8_monolithic=true v8_static_library=true 
+            v8_use_external_startup_data=false 
+            v8_enable_sandbox=false 
+            v8_enable_debugging_features=false 
+            v8_enable_i18n_support=false 
+            v8_enable_lite_mode=true 
+            v8_enable_pointer_compression=false 
+            v8_enable_v8_checks=false 
+            v8_enable_webassembly=false 
+            target_cpu = "x64" 
+            v8_target_cpu = "x64" 
+            symbol_level=0 
+            strip_debug_info=true'
+          $GITHUB_WORKSPACE/depot_tools/ninja -C out/x64 -v
+      - name: package v8 libraries
+        run: |
+          mkdir -p macOS
+          cp  $GITHUB_WORKSPACE/v8/v8/out/arm64/obj/*.a macOS
+          for file in `ls macOS`; do
+              echo $file
+              libtool -static -o macOS/$file macOS/$file $GITHUB_WORKSPACE/v8/v8/out/x64/obj/$file
+          done
+          zip -v v8_lib_macOS.zip -r macOS
+          cp -r $GITHUB_WORKSPACE/v8/v8/include .
+          zip -v v8_include_headers.zip -r include
+      - name: push to release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.event.inputs.tag }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: "v8_lib_macOS.zip,v8_include_headers.zip"
+
+        

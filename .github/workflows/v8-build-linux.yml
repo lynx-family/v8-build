@@ -1,0 +1,71 @@
+name: publish v8 linux lib to release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'release tag'
+        required: true
+        type: string
+jobs:
+  build-v8-linux-libraries:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repo.
+        uses: actions/checkout@v4
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: prepare cipd
+        run: |
+            mkdir -p ${GITHUB_WORKSPACE}/v8
+            cd ${GITHUB_WORKSPACE}/v8
+            git clone https://chromium.googlesource.com/chromium/tools/depot_tools
+            export PATH=$PATH:${GITHUB_WORKSPACE}/v8/depot_tools
+            echo "${GITHUB_WORKSPACE}/v8/depot_tools" >> $GITHUB_PATH
+  
+      - name: download v8
+        run: |
+            cd ${GITHUB_WORKSPACE}/v8
+            fetch v8
+            cd v8
+            git checkout 11.1.277
+            gclient sync
+            ./build/install-build-deps.sh
+            git apply $GITHUB_WORKSPACE/v8.patch
+            echo "$GITHUB_WORKSPACE/v8/v8/third_party/depot_tools" >> $GITHUB_PATH
+
+      - name: build v8 linux x64
+        run: |
+            cd ${GITHUB_WORKSPACE}/v8/v8
+            gn gen out/x64 --args='
+              v8_use_libm_trig_functions = false
+              v8_enable_i18n_support = false
+              v8_use_external_startup_data = false
+              v8_enable_snapshot_compression = false
+              v8_enable_pointer_compression = false
+              v8_enable_pointer_compression_8gb = false
+              v8_use_zlib = false
+
+              target_os = "linux"
+              target_cpu = "x64"
+              v8_monolithic = true
+              use_custom_libcxx = false
+              is_debug = false
+              symbol_level = 0'
+            ninja -C out/x64 v8_monolith
+      - name: package v8 linux x64
+        run: |
+            mkdir -p v8-linux
+            cp ${GITHUB_WORKSPACE}/v8/v8/out/x64/obj/libv8_monolith.a v8-linux/
+            zip -v v8_lib_linux.zip -r v8-linux
+          
+      - name: push to release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.event.inputs.tag }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: "v8_lib_linux.zip"

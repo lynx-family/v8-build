@@ -1,0 +1,175 @@
+name: android sdk release
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  android-release:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download Source
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: prepare cipd
+        run: |
+            mkdir -p ${GITHUB_WORKSPACE}/v8
+            cd ${GITHUB_WORKSPACE}/v8
+            git clone https://chromium.googlesource.com/chromium/tools/depot_tools
+            export PATH=$PATH:${GITHUB_WORKSPACE}/v8/depot_tools
+            echo "${GITHUB_WORKSPACE}/v8/depot_tools" >> $GITHUB_PATH
+  
+      - name: download v8
+        run: |
+            cd ${GITHUB_WORKSPACE}/v8
+            fetch v8
+            echo "target_os = ['android']" >> .gclient
+            cd v8
+            git checkout 11.1.277
+            gclient sync
+            ./build/install-build-deps.sh --android --arm --lib32
+            echo "${GITHUB_WORKSPACE}/v8/v8/third_party/depot_tools" >> $GITHUB_PATH
+            pushd build
+            git apply $GITHUB_WORKSPACE/build.patch
+            popd
+            git apply $GITHUB_WORKSPACE/v8.patch
+            cp ./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/lib64/clang/12.0.5/lib/linux/aarch64/libunwind.a ./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/
+            cp ./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/lib64/clang/12.0.5/lib/linux/arm/libunwind.a ./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/
+            cp ./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/lib64/clang/12.0.5/lib/linux/i386/libunwind.a ./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android/
+            
+      - name: build v8 arm64
+        run: |
+            cd ${GITHUB_WORKSPACE}/v8/v8
+            gn gen out/arm64 --args='
+              v8_use_libm_trig_functions = false
+              v8_enable_i18n_support = false
+              v8_use_external_startup_data = false
+              v8_enable_snapshot_compression = false
+              v8_enable_pointer_compression = false
+              v8_enable_pointer_compression_8gb = false
+              v8_use_zlib = false
+              default_min_sdk_version = 21
+              android_ndk_major_version = 21
+              target_os = "android"
+              target_cpu = "arm64"
+              is_component_build = true
+              use_custom_libcxx = false
+              libcxx_is_shared = false
+              is_debug = false
+              symbol_level = 0'
+            ninja -C out/arm64 -j4 v8
+
+      - name: build v8 arm32
+        run: |
+            cd ${GITHUB_WORKSPACE}/v8/v8
+            gn gen out/arm32 --args='
+              v8_use_libm_trig_functions = false
+              v8_enable_i18n_support = false
+              v8_use_external_startup_data = false
+              v8_enable_snapshot_compression = false
+              v8_enable_pointer_compression = false
+              v8_enable_pointer_compression_8gb = false
+              v8_use_zlib = false
+              default_min_sdk_version = 21
+              android_ndk_major_version = 21
+              target_os = "android"
+              target_cpu = "arm"
+              is_component_build = true
+              use_custom_libcxx = false
+              libcxx_is_shared = false
+              is_debug = false
+              symbol_level = 0'
+            ninja -C out/arm32 -j4 v8
+  
+      - name: build v8 x86
+        run: |
+            cd ${GITHUB_WORKSPACE}/v8/v8
+            gn gen out/x86 --args='
+              v8_use_libm_trig_functions = false
+              v8_enable_i18n_support = false
+              v8_use_external_startup_data = false
+              v8_enable_snapshot_compression = false
+              v8_enable_pointer_compression = false
+              v8_enable_pointer_compression_8gb = false
+              v8_use_zlib = false
+              default_min_sdk_version = 21
+              android_ndk_major_version = 21
+              target_os = "android"
+              target_cpu = "x86"
+              is_component_build = true
+              use_custom_libcxx = false
+              libcxx_is_shared = false
+              is_debug = false
+              symbol_level = 0'
+            ninja -C out/x86 -j4 v8
+  
+      - name: Get all v8 android libs
+        run: |
+            mkdir -p Android/v8so/libs/arm64-v8a
+            mkdir -p Android/v8so/libs/armeabi-v7a
+            mkdir -p Android/v8so/libs/x86
+            cp ${GITHUB_WORKSPACE}/v8/v8/out/arm64/lib*.so Android/v8so/libs/arm64-v8a/
+            cp ${GITHUB_WORKSPACE}/v8/v8/out/arm32/lib*.so Android/v8so/libs/armeabi-v7a/
+            cp ${GITHUB_WORKSPACE}/v8/v8/out/x86/lib*.so Android/v8so/libs/x86/
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v1
+        with:
+          java-version: 11
+  
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            $HOME/.gradle/caches
+            $HOME/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+  
+      - name: Get Tag Information
+        run: |-
+          version=$(echo ${{ github.ref }} | awk -F "/" '{print $3}')
+          echo "VERSION=$version" >> $GITHUB_OUTPUT;
+        id: get_tag
+
+      - name: Build the AAR
+        run: |
+          pushd Android
+          chmod +x ./gradlew
+          ./gradlew :v8so:assemblerelease
+          ./gradlew :v8so:publish \
+          -Pversion=${{ steps.get_tag.outputs.VERSION }} \
+          -Psigning.keyId=${{ secrets.SIGNING_KEY_ID }} \
+          -Psigning.password=${{ secrets.SIGNING_PASSWORD }} \
+          -Psigning.secretKey=${{ secrets.SIGNING_SECRET_KEY }}
+          ./gradlew :v8so:zipArtifacts -Pversion=${{ steps.get_tag.outputs.VERSION }} :v8so:getArtifactList
+          popd
+          pushd Android/v8so/build/
+          artifact_list=$(<artifact-list)
+          echo "artifact_list=$artifact_list" >> $GITHUB_OUTPUT;
+          popd
+        id: build_artifact
+  
+      - name: push to release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.get_tag.outputs.VERSION }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: "Android/v8so/build/outputs/aar/v8so-release.aar"
+          replacesArtifacts: true
+          allowUpdates: true
+
+      - name: Publish artifact to maven
+        uses: lynx-infra/maven-publish-action@c48e3067642c7ceccf807cd52e6644a257cd8ded
+        with:
+          portal_api_token: ${{ secrets.PORTAL_API_TOKEN }}
+          artifact_path_list: ${{ steps.build_artifact.outputs.artifact_list }}

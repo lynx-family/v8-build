@@ -1,0 +1,30 @@
+diff --git a/BUILD.gn b/BUILD.gn
+index e1f23f17969..756fc860bae 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -5554,7 +5554,7 @@ v8_source_set("torque_ls_base") {
+   }
+ }
+ 
+-v8_component("v8_libbase") {
++v8_source_set("v8_libbase") {
+   sources = [
+     "src/base/address-region.h",
+     "src/base/atomic-utils.h",
+@@ -5841,7 +5841,7 @@ if (v8_use_libm_trig_functions) {
+   }
+ }
+ 
+-v8_component("v8_libplatform") {
++v8_source_set("v8_libplatform") {
+   sources = [
+     "//base/trace_event/common/trace_event_common.h",
+     "include/libplatform/libplatform-export.h",
+@@ -6618,6 +6618,7 @@ if (is_component_build) {
+     configs = [ ":internal_config" ]
+ 
+     public_configs = [ ":external_config" ]
++    output_name = "v8_libfull"
+   }
+ 
+   v8_component("v8_for_testing") {

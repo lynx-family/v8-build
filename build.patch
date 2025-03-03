@@ -1,0 +1,41 @@
+diff --git a/config/android/BUILD.gn b/config/android/BUILD.gn
+index efdd3826e..c56c338fd 100644
+--- a/config/android/BUILD.gn
++++ b/config/android/BUILD.gn
+@@ -81,6 +81,16 @@ config("compiler") {
+ # :runtime_library vs. :compiler.
+ config("runtime_library") {
+   libs = []
++  if (!use_custom_libcxx) {
++    if (is_component_build && libcxx_is_shared) {
++      libs += [ "c++_shared" ]
++    } else {
++      libs += [ "c++_static" ]
++    }
++    libs += [ "c++abi" ]
++  }
++  libs += ["unwind"]
++
+   ldflags = []
+ 
+   # On 64-bit platforms, the only symbols provided by libandroid_support.a are
+diff --git a/config/compiler/BUILD.gn b/config/compiler/BUILD.gn
+index 031c2f201..5e4000f2f 100644
+--- a/config/compiler/BUILD.gn
++++ b/config/compiler/BUILD.gn
+@@ -1001,6 +1001,7 @@ config("compiler_cpu_abi") {
+         ]
+       }
+     } else if (current_cpu == "arm") {
++      ldflags += [ "-Wl,--hash-style=sysv" ]
+       if (is_clang && !is_android && !is_nacl &&
+           !(is_chromeos_lacros && is_chromeos_device)) {
+         cflags += [ "--target=arm-linux-gnueabihf" ]
+@@ -1016,6 +1017,7 @@ config("compiler_cpu_abi") {
+         cflags += [ "-mtune=$arm_tune" ]
+       }
+     } else if (current_cpu == "arm64") {
++      ldflags += [ "-Wl,--hash-style=sysv" ]
+       if (is_clang && !is_android && !is_nacl && !is_fuchsia &&
+           !(is_chromeos_lacros && is_chromeos_device)) {
+         cflags += [ "--target=aarch64-linux-gnu" ]

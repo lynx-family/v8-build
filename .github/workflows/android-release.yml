@@ -44,6 +44,7 @@ jobs:
             cp ./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/lib64/clang/12.0.5/lib/linux/aarch64/libunwind.a ./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/
             cp ./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/lib64/clang/12.0.5/lib/linux/arm/libunwind.a ./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/
             cp ./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/lib64/clang/12.0.5/lib/linux/i386/libunwind.a ./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/i686-linux-android/
+            cp ./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/lib64/clang/12.0.5/lib/linux/x86_64/libunwind.a ./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android/
             
       - name: build v8 arm64
         run: |
@@ -110,15 +111,39 @@ jobs:
               is_debug = false
               symbol_level = 0'
             ninja -C out/x86 -j4 v8
+
+      - name: build v8 x64
+        run: |
+            cd ${GITHUB_WORKSPACE}/v8/v8
+            gn gen out/x64 --args='
+              v8_use_libm_trig_functions = false
+              v8_enable_i18n_support = false
+              v8_use_external_startup_data = false
+              v8_enable_snapshot_compression = false
+              v8_enable_pointer_compression = false
+              v8_enable_pointer_compression_8gb = false
+              v8_use_zlib = false
+              default_min_sdk_version = 21
+              android_ndk_major_version = 21
+              target_os = "android"
+              target_cpu = "x64"
+              is_component_build = true
+              use_custom_libcxx = false
+              libcxx_is_shared = false
+              is_debug = false
+              symbol_level = 0'
+            ninja -C out/x64 -j4 v8
   
       - name: Get all v8 android libs
         run: |
             mkdir -p Android/v8so/libs/arm64-v8a
             mkdir -p Android/v8so/libs/armeabi-v7a
             mkdir -p Android/v8so/libs/x86
+            mkdir -p Android/v8so/libs/x64
             cp ${GITHUB_WORKSPACE}/v8/v8/out/arm64/lib*.so Android/v8so/libs/arm64-v8a/
             cp ${GITHUB_WORKSPACE}/v8/v8/out/arm32/lib*.so Android/v8so/libs/armeabi-v7a/
             cp ${GITHUB_WORKSPACE}/v8/v8/out/x86/lib*.so Android/v8so/libs/x86/
+            cp ${GITHUB_WORKSPACE}/v8/v8/out/x64/lib*.so Android/v8so/libs/x64/
 
       - name: Set up JDK 11
         uses: actions/setup-java@v1

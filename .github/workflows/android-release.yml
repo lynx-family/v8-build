@@ -1,13 +1,17 @@
 name: android sdk release
 
+# on:
+#   push:
+#     tags:
+#       - '*'
 on:
-  push:
-    tags:
-      - '*'
+  pull_request:
+    branches:
+      - main
 
 jobs:
   android-release:
-    runs-on: ubuntu-22.04
+    runs-on: lynx-ubuntu-22.04-avd-large
     permissions:
       contents: write
     steps:
@@ -162,8 +166,7 @@ jobs:
   
       - name: Get Tag Information
         run: |-
-          version=$(echo ${{ github.ref }} | awk -F "/" '{print $3}')
-          echo "VERSION=$version" >> $GITHUB_OUTPUT;
+          echo "VERSION=11.1.277.1" >> $GITHUB_OUTPUT;
         id: get_tag
 
       - name: Build the AAR
@@ -192,9 +195,3 @@ jobs:
           artifacts: "Android/v8so/build/outputs/aar/v8so-release.aar"
           replacesArtifacts: true
           allowUpdates: true
-
-      - name: Publish artifact to maven
-        uses: lynx-infra/maven-publish-action@c48e3067642c7ceccf807cd52e6644a257cd8ded
-        with:
-          portal_api_token: ${{ secrets.PORTAL_API_TOKEN }}
-          artifact_path_list: ${{ steps.build_artifact.outputs.artifact_list }}

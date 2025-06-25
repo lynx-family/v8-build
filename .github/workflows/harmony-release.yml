@@ -1,0 +1,107 @@
+name: harmony sdk release
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  harmony-release:
+    runs-on: lynx-custom-dind
+    container: 
+      image: ghcr.io/lynx-family/ubuntu24.04-harmony:lastest
+      options: --cap-add=NET_ADMIN
+      credentials:
+        username: lynx-family
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Set MTU
+        run: |
+          sudo apt install --no-install-recommends -y iproute2 
+          sudo ip link set dev eth0 mtu 1450 # remain 50 for k8s overlay
+          echo "MTU set successfully"
+
+      - name: Checkout repo
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: prepare cipd
+        run: |
+            mkdir -p ${GITHUB_WORKSPACE}/v8
+            cd ${GITHUB_WORKSPACE}/v8
+            git clone https://chromium.googlesource.com/chromium/tools/depot_tools
+            export PATH=$PATH:${GITHUB_WORKSPACE}/v8/depot_tools
+            echo "${GITHUB_WORKSPACE}/v8/depot_tools" >> $GITHUB_PATH
+
+      - name: download v8
+        run: |
+            cd ${GITHUB_WORKSPACE}/v8
+            fetch v8
+            cd v8
+            git checkout 11.1.277
+            gclient sync
+            ./build/install-build-deps.sh
+            git apply $GITHUB_WORKSPACE/v8.patch
+            echo "$GITHUB_WORKSPACE/v8/v8/third_party/depot_tools" >> $GITHUB_PATH
+
+      - name: build v8 arm64
+        run: |
+            cd ${GITHUB_WORKSPACE}/v8/v8
+            gn gen out/arm64 --args='
+              v8_use_libm_trig_functions = false
+              v8_enable_i18n_support = false
+              v8_use_external_startup_data = false
+              v8_enable_snapshot_compression = false
+              v8_enable_pointer_compression = false
+              v8_enable_pointer_compression_8gb = false
+              v8_use_zlib = false
+              default_min_sdk_version = 21
+              target_os = "harmony"
+              target_cpu = "arm64"
+              v8_enable_lite_mode=true
+              is_component_build = true
+              use_custom_libcxx = false
+              libcxx_is_shared = false
+              is_debug = false
+              symbol_level = 0'
+            ninja -C out/arm64 -j4 v8
+
+      - name: build v8 arm32
+        run: |
+            cd ${GITHUB_WORKSPACE}/v8/v8
+            gn gen out/arm32 --args='
+              v8_use_libm_trig_functions = false
+              v8_enable_i18n_support = false
+              v8_use_external_startup_data = false
+              v8_enable_snapshot_compression = false
+              v8_enable_pointer_compression = false
+              v8_enable_pointer_compression_8gb = false
+              v8_use_zlib = false
+              default_min_sdk_version = 21
+              target_os = "harmony"
+              target_cpu = "arm"
+              v8_enable_lite_mode=true
+              is_component_build = true
+              use_custom_libcxx = false
+              libcxx_is_shared = false
+              is_debug = false
+              symbol_level = 0'
+            ninja -C out/arm32 -j4 v8
+
+      - name: Get all v8 harmony libs
+        run: |
+            mkdir -p v8so/harmony/libs/arm64-v8a
+            mkdir -p v8so/harmony/libs/armeabi-v7a
+            cp ${GITHUB_WORKSPACE}/v8/v8/out/arm64/lib*.so v8so/harmony/libs/arm64-v8a/
+            cp ${GITHUB_WORKSPACE}/v8/v8/out/arm32/lib*.so v8so/harmony/libs/armeabi-v7a/
+            zip -v v8so_harmony.zip -r v8so
+
+      - name: push to release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.event.inputs.tag }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: "v8so_harmony.zip"

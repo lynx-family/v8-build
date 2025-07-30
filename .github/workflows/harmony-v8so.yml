@@ -1,0 +1,27 @@
+name: harmony v8so release
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  harmony-v8so:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download Source
+        uses: actions/checkout@v4.2.2
+
+      - name: Get all v8 harmony libs
+        run: |
+            mkdir -p harmony
+            cp -r ${GITHUB_WORKSPACE}/v8so/harmony/libs harmony/
+            zip -v v8so_harmony.zip -r harmony
+
+      - name: push to release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: 0.0.2
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: "v8so_harmony.zip"

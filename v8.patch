@@ -1,8 +1,25 @@
 diff --git a/BUILD.gn b/BUILD.gn
-index e1f23f17969..756fc860bae 100644
+index e1f23f17969..89bb774859d 100644
 --- a/BUILD.gn
 +++ b/BUILD.gn
-@@ -5554,7 +5554,7 @@ v8_source_set("torque_ls_base") {
+@@ -885,6 +885,16 @@ config("cppgc_header_features") {
+   }
+ }
+ 
++config("android15_16kb_support") {
++  ldflags = []
++  if (v8_current_cpu == "x64" || v8_current_cpu == "arm64") {
++    ldflags += [
++      "-Wl,-z,max-page-size=16384",
++      "-Wl,-z,common-page-size=16384",
++    ]
++  }
++}
++
+ enabled_external_defines =
+     enabled_external_v8_defines + enabled_external_cppgc_defines
+ disabled_external_defines =
+@@ -5554,7 +5564,7 @@ v8_source_set("torque_ls_base") {
    }
  }
  
@@ -11,7 +28,7 @@ index e1f23f17969..756fc860bae 100644
    sources = [
      "src/base/address-region.h",
      "src/base/atomic-utils.h",
-@@ -5841,7 +5841,7 @@ if (v8_use_libm_trig_functions) {
+@@ -5841,7 +5851,7 @@ if (v8_use_libm_trig_functions) {
    }
  }
  
@@ -20,11 +37,33 @@ index e1f23f17969..756fc860bae 100644
    sources = [
      "//base/trace_event/common/trace_event_common.h",
      "include/libplatform/libplatform-export.h",
-@@ -6618,6 +6618,7 @@ if (is_component_build) {
-     configs = [ ":internal_config" ]
+@@ -6615,9 +6625,13 @@ if (is_component_build) {
+       ":v8_snapshot",
+     ]
+ 
+-    configs = [ ":internal_config" ]
++    configs = [
++      ":internal_config",
++      ":android15_16kb_support",
++    ]
  
      public_configs = [ ":external_config" ]
 +    output_name = "v8_libfull"
    }
  
    v8_component("v8_for_testing") {
+diff --git a/src/base/build_config.h b/src/base/build_config.h
+index ff4a936709d..a9973aacabf 100644
+--- a/src/base/build_config.h
++++ b/src/base/build_config.h
+@@ -81,8 +81,8 @@ constexpr int kMinimumOSPageSize = 16 * 1024;
+ // pages.
+ constexpr int kMinimumOSPageSize = 64 * 1024;
+ #else
+-// Everything else uses 4kB pages.
+-constexpr int kMinimumOSPageSize = 4 * 1024;
++// Everything else uses 16kB pages.
++constexpr int kMinimumOSPageSize = 16 * 1024;
+ #endif
+ 
+ #endif  // V8_BASE_BUILD_CONFIG_H_

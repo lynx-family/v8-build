@@ -1,0 +1,91 @@
+name: publish v8 Windows libraries to release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'release tag'
+        required: true
+        type: string
+        default: '11.1.277'
+
+jobs:
+  build-v8:
+    runs-on: lynx-windows-2022-large
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      - name: setup depot_tools
+        run: |
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          echo "${{ github.workspace }}\depot_tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: download v8
+        run: |
+          $env:vs2022_install = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools"
+          $env:DEPOT_TOOLS_WIN_TOOLCHAIN = 0
+          $env:GYP_MSVS_OVERRIDE_PATH = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools"
+          $env:WINDOWSSDKDIR = "${env:ProgramFiles(x86)}\Windows Kits\10"
+          New-Item -ItemType Directory -Force -Path ${{ github.workspace }}\v8
+          cd ${{ github.workspace }}\v8
+          fetch v8
+          cd v8
+          git checkout 11.1.277
+          gclient sync
+      - name: build v8 x86
+        run: |
+          $env:vs2022_install = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools"
+          $env:DEPOT_TOOLS_WIN_TOOLCHAIN = 0
+          $env:GYP_MSVS_OVERRIDE_PATH = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools"
+          $env:WINDOWSSDKDIR = "${env:ProgramFiles(x86)}\Windows Kits\10"
+          cd ${{ github.workspace }}\v8\v8
+          gn gen out\x86 --args='v8_monolithic=true v8_static_library=true is_clang=true fatal_linker_warnings=false treat_warnings_as_errors=false v8_enable_pointer_compression=false is_official_build=false is_component_build=false symbol_level=1 v8_enable_v8_checks=false use_custom_libcxx=true v8_enable_debugging_features=false is_debug=false enable_iterator_debugging=false v8_use_external_startup_data=false v8_enable_i18n_support=false use_goma=false goma_dir=\"None\" target_cpu=\"x86\" v8_target_cpu=\"x86\" target_os=\"win\" v8_enable_etw_stack_walking=false'
+          ninja -C out\x86 -v
+      - name: build v8 x64
+        run: |
+          $env:vs2022_install = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools"
+          $env:DEPOT_TOOLS_WIN_TOOLCHAIN = 0
+          $env:GYP_MSVS_OVERRIDE_PATH = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools"
+          $env:WINDOWSSDKDIR = "${env:ProgramFiles(x86)}\Windows Kits\10"
+          cd ${{ github.workspace }}\v8\v8
+          gn gen out\x64 --args='v8_monolithic=true v8_static_library=true is_clang=true fatal_linker_warnings=false treat_warnings_as_errors=false v8_enable_pointer_compression=false is_official_build=false is_component_build=false symbol_level=1 v8_enable_v8_checks=false use_custom_libcxx=true v8_enable_debugging_features=false is_debug=false enable_iterator_debugging=false v8_use_external_startup_data=false v8_enable_i18n_support=false use_goma=false goma_dir=\"None\" target_cpu=\"x64\" v8_target_cpu=\"x64\" target_os=\"win\" v8_enable_etw_stack_walking=false'
+          ninja -C out\x64 -v
+      - name: package v8 libraries
+        run: |
+          # Debug: List build artifacts in the x86 obj directory
+          Write-Host "=== Listing v8 out/x86/obj directory ==="
+          Get-ChildItem -Path "${{ github.workspace }}\v8\v8\out\x86\obj" -Filter "*.lib" | Select-Object Name, Length
+          
+          # Debug: List build artifacts in the x64 obj directory
+          Write-Host "=== Listing v8 out/x64/obj directory ==="
+          Get-ChildItem -Path "${{ github.workspace }}\v8\v8\out\x64\obj" -Filter "*.lib" | Select-Object Name, Length
+          
+          # Create output directories
+          New-Item -ItemType Directory -Force -Path ${{ github.workspace }}\x86
+          New-Item -ItemType Directory -Force -Path ${{ github.workspace }}\x64
+          
+          # Copy v8_monolith.lib for x86
+          Copy-Item -Path "${{ github.workspace }}\v8\v8\out\x86\obj\v8_monolith.lib" -Destination "${{ github.workspace }}\x86\" -ErrorAction SilentlyContinue
+          
+          # Copy v8_monolith.lib for x64
+          Copy-Item -Path "${{ github.workspace }}\v8\v8\out\x64\obj\v8_monolith.lib" -Destination "${{ github.workspace }}\x64\" -ErrorAction SilentlyContinue
+          
+          # Debug: Verify the files were copied
+          Write-Host "=== Listing Windows/x86 directory ==="
+          Get-ChildItem -Path "${{ github.workspace }}\x86\" | Select-Object Name, Length
+          Write-Host "=== Listing Windows/x64 directory ==="
+          Get-ChildItem -Path "${{ github.workspace }}\x64\" | Select-Object Name, Length
+          
+          # Package the libraries
+          Compress-Archive -Path "${{ github.workspace }}\x86\v8_monolith.lib" -DestinationPath "${{ github.workspace }}\v8_lib_windows_x86.zip" -Force
+          Compress-Archive -Path "${{ github.workspace }}\x64\v8_monolith.lib" -DestinationPath "${{ github.workspace }}\v8_lib_windows_x64.zip" -Force
+      - name: push to release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.event.inputs.tag }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: "v8_lib_windows_x86.zip,v8_lib_windows_x64.zip"
+          allowUpdates: true

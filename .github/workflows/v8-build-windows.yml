@@ -42,7 +42,7 @@ jobs:
           $env:GYP_MSVS_OVERRIDE_PATH = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools"
           $env:WINDOWSSDKDIR = "${env:ProgramFiles(x86)}\Windows Kits\10"
           cd ${{ github.workspace }}\v8\v8
-          gn gen out\x86 --args='v8_monolithic=true v8_static_library=true is_clang=true fatal_linker_warnings=false treat_warnings_as_errors=false v8_enable_pointer_compression=false is_official_build=false is_component_build=false symbol_level=1 v8_enable_v8_checks=false use_custom_libcxx=true v8_enable_debugging_features=false is_debug=false enable_iterator_debugging=false v8_use_external_startup_data=false v8_enable_i18n_support=false use_goma=false goma_dir=\"None\" target_cpu=\"x86\" v8_target_cpu=\"x86\" target_os=\"win\" v8_enable_etw_stack_walking=false'
+          gn gen out\x86 --args='v8_monolithic=true v8_static_library=true is_clang=true fatal_linker_warnings=false treat_warnings_as_errors=false v8_enable_pointer_compression=false is_official_build=false is_component_build=false symbol_level=1 v8_enable_v8_checks=false use_custom_libcxx=true v8_enable_debugging_features=false is_debug=false enable_iterator_debugging=false v8_use_external_startup_data=false v8_enable_i18n_support=false use_goma=false goma_dir=\"None\" target_cpu=\"x86\" v8_target_cpu=\"x86\" target_os=\"win\" v8_enable_etw_stack_walking=false v8_enable_snapshot_compression=false v8_use_zlib=false'
           ninja -C out\x86 -v
       - name: build v8 x64
         run: |
@@ -51,7 +51,7 @@ jobs:
           $env:GYP_MSVS_OVERRIDE_PATH = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools"
           $env:WINDOWSSDKDIR = "${env:ProgramFiles(x86)}\Windows Kits\10"
           cd ${{ github.workspace }}\v8\v8
-          gn gen out\x64 --args='v8_monolithic=true v8_static_library=true is_clang=true fatal_linker_warnings=false treat_warnings_as_errors=false v8_enable_pointer_compression=false is_official_build=false is_component_build=false symbol_level=1 v8_enable_v8_checks=false use_custom_libcxx=true v8_enable_debugging_features=false is_debug=false enable_iterator_debugging=false v8_use_external_startup_data=false v8_enable_i18n_support=false use_goma=false goma_dir=\"None\" target_cpu=\"x64\" v8_target_cpu=\"x64\" target_os=\"win\" v8_enable_etw_stack_walking=false'
+          gn gen out\x64 --args='v8_monolithic=true v8_static_library=true is_clang=true fatal_linker_warnings=false treat_warnings_as_errors=false v8_enable_pointer_compression=false is_official_build=false is_component_build=false symbol_level=1 v8_enable_v8_checks=false use_custom_libcxx=true v8_enable_debugging_features=false is_debug=false enable_iterator_debugging=false v8_use_external_startup_data=false v8_enable_i18n_support=false use_goma=false goma_dir=\"None\" target_cpu=\"x64\" v8_target_cpu=\"x64\" target_os=\"win\" v8_enable_etw_stack_walking=false v8_enable_snapshot_compression=false v8_use_zlib=false'
           ninja -C out\x64 -v
       - name: package v8 libraries
         run: |

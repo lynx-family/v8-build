@@ -36,7 +36,7 @@ jobs:
           git checkout 11.1.277
           gclient sync
           cd buildtools
-          git apply $GITHUB_WORKSPACE/win-build.patch
+          git apply ${{ github.workspace }}\win-build.patch
       - name: build v8 x86
         run: |
           $env:vs2022_install = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools"

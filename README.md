@@ -7,7 +7,7 @@ This repository hosts scripts for V8 binary builds tailored for [Lynx](https://g
 - [Android](./.github/workflows/android-release.yml)
 - [linux](./.github/workflows/v8-build-linux.yml)
 - [macOS](./.github/workflows/v8-build-macos.yml)
-- Windows
+- [Windows](./.github\workflows\v8-build-windows.yml)
 
 ## License
 

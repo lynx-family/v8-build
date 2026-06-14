@@ -34,10 +34,18 @@ jobs:
           cd v8
           git checkout 11.1.277
           gclient sync
+      - name: download lynx toolchain
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/lynx/buildtools/llvm
+          curl -L https://github.com/lynx-family/buildtools/releases/download/llvm-020d2fb7/buildtools-llvm-darwin-arm64.tar.gz | tar -xz -C $GITHUB_WORKSPACE/lynx/buildtools/llvm
       - name: build v8 arm64
         run: |
           cd $GITHUB_WORKSPACE/v8/v8
+          sed -i '' 's|ldflags = \[\]|ldflags = \[ "-L'"$GITHUB_WORKSPACE"'/lynx/buildtools/llvm/lib" \]|g' build/config/compiler/BUILD.gn
+          sed -i '' 's|common_mac_flags = \[\]|common_mac_flags = \[ "-L'"$GITHUB_WORKSPACE"'/lynx/buildtools/llvm/lib" \]|g' build/config/mac/BUILD.gn
           gn gen out/arm64 --args='
+            clang_base_path = "'"$GITHUB_WORKSPACE"'/lynx/buildtools/llvm"
+            clang_use_chrome_plugins = false
             target_os = "mac"
             use_xcode_clang=false
             treat_warnings_as_errors=false 
@@ -63,6 +71,8 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/v8/v8
           gn gen out/x64 --args='
+            clang_base_path = "'"$GITHUB_WORKSPACE"'/lynx/buildtools/llvm"
+            clang_use_chrome_plugins = false
             target_os = "mac"
             use_xcode_clang=false
             treat_warnings_as_errors=false 
